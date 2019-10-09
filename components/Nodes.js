@@ -53,10 +53,6 @@ class Nodes {
 
     io.on('connect', (socket) => {
       console.log('[+] User connected')
-      console.log(socket.request.socket.remoteAddress)
-      socket.on('disconnct', () => {
-        console.log('disconnctytyy')
-      })
 
       socket.on('isAlive', (id) => {
         if(self.nodeList[id]) {
@@ -68,22 +64,25 @@ class Nodes {
       socket.on('nodeStats', (data) => {
         if(self.nodeList[data.id]) {
           const ping = Date.now() - data.timestamp;
-          self.nodeList[data.id].id = data.id
-          self.nodeList[data.id].type = data.type
-          self.nodeList[data.id].name = data.name
-          self.nodeList[data.id].isMining = data.isMining
-          self.nodeList[data.id].peers = data.peers
-          self.nodeList[data.id].lastBlockNumber = data.lastBlockNumber
-          self.nodeList[data.id].lastBlockTransactions = data.lastBlockTransactions
-          self.nodeList[data.id].lastRecievedBlock = data.lastRecievedBlock
-          self.nodeList[data.id].totalDifficulty = data.totalDifficulty
-          self.nodeList[data.id].propagationTime = data.propagationTime
-          self.nodeList[data.id].ping = ping
-          self.nodeList[data.id].upTime = self.calculateUptime(self.nodeList[data.id].upTimeRequests, self.nodeList[data.id].upTimeReplies)
-          self.nodeList[data.id].lastSeen = Date.now()
-          //console.log(self.nodeList[data.id])
+          const node = self.nodeList[data.id]
+          node.id                     = data.id
+          node.type                   = data.type
+          node.name                   = data.name
+          node.isMining               = data.isMining
+          node.peers                  = data.peers
+          node.lastBlockNumber        = data.lastBlockNumber
+          node.lastBlockTransactions  = data.lastBlockTransactions
+          node.lastRecievedBlock      = data.lastRecievedBlock
+          node.totalDifficulty        = data.totalDifficulty
+          node.propagationTime        = data.propagationTime
+          node.ping                   = ping
+          node.ip                     = data.ip
+          node.geo                    = data.geo
+          node.upTime                 = self.calculateUptime(self.nodeList[data.id].upTimeRequests, self.nodeList[data.id].upTimeReplies)
+          node.lastSeen               = Date.now()
+          console.log(self.nodeList[data.id])
         } else {
-          console.log('[+] Registering new node: ', data.name)
+          console.log('[+] Registering new node:', data.name)
           const ping = Date.now() - data.timestamp;
           self.nodeList[data.id] = {
             id: data.id,
@@ -97,6 +96,8 @@ class Nodes {
             totalDifficulty: data.totalDifficulty,
             propagationTime: data.propagationTime,
             ping: ping,
+            ip: data.ip,
+            geo: data.geo,
             upTimeRequests: 0,
             upTimeReplies: 0,
             upTime: 100,
@@ -106,14 +107,6 @@ class Nodes {
       })
     })
   }
-
-  checkConnectionList() {
-
-  }
-
-
-
-
 
 }
 
