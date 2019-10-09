@@ -1,22 +1,21 @@
 const io = require('../index')
 
-  const example = {
-    id: '4ba08ad6480cff9a1bd68afd860bce7b503c473849710d16bf8684f36347cb8ed0c599f40fd8c7eabb9e04247ce6c9accc13523b26b25ccb8e733ba4b6a3d839',
-    type: 'Geth',
-    name: 'validator-mel-app01-10',
-    isMining: true,
-    peers: 14,
-    lastBlockNumber: 931304,
-    lastBlockTransactions: 0,
-    lastRecievedBlock: 1570508902294,
-    totalDifficulty: '931305',
-    timestamp: 1570508902308
-  }
-
 class Nodes {
 
   constructor() {
     this.nodeList = {}
+
+    this.bestBlock = 0
+    this.lastBlockMiner = '0x0000000000000000000000000000000000000000'
+    this.lastBlockTime = 0
+    this.avgBlockTime = 0
+    this.minBlockTime = 0
+    this.maxBlockTime = 0
+    this.blockTimes = []
+    this.transactionHistory = []
+    this.avgTransactions = 0
+    this.minTransactions = 0
+    this.maxTransactions = 0
     this.init()
   }
 
@@ -29,6 +28,21 @@ class Nodes {
   emitNodes() {
     setInterval(()=>{
       io.emit('nodeList', this.nodeList)
+      const payload = {
+        bestBlock: this.bestBlock,
+        lastBlockTime: this.lastBlockTime,
+        lastBlockMiner: this.lastBlockMiner,
+        avgBlockTime: this.avgBlockTime,
+        minBlockTime: this.minBlockTime,
+        maxBlockTime: this.maxBlockTime,
+        blockTimes: this.blockTimes,
+        transactionHistory: this.transactionHistory,
+        minTransactions: this.minTransactions,
+        avgTransactions: this.avgTransactions,
+        maxTransactions: this.maxTransactions,
+      }
+      console.log(payload)
+      io.emit('blockStats', payload)
     },1000)
   }
 
@@ -36,10 +50,51 @@ class Nodes {
     const self = this
     setInterval(()=>{
       Object.keys(this.nodeList).forEach( id => {
+        self.nodeList[id].upTime = self.calculateUptime(self.nodeList[id].upTimeRequests, self.nodeList[id].upTimeReplies)
         self.nodeList[id].upTimeRequests++
       });
       io.emit('checkAlive')
     },5000)
+  }
+
+  findMinMax(arr, key) {
+  let min = arr[0][key], max = arr[0][key];
+
+  for (let i = 0; i<arr.length; i++) {
+    let v = arr[i][key];
+    min = (v < min) ? v : min;
+    max = (v > max) ? v : max;
+  }
+
+  return {min, max};
+}
+  addTransactions(blockNumber, transactions) {
+    this.transactionHistory.push({
+      blockNumber,
+      transactions
+    })
+    if(this.transactionHistory.length  > 30) {
+      this.transactionHistory.shift()
+    }
+    this.avgTransactions = this.transactionHistory.reduce((a,b) => a + b.transactions, 0) / this.transactionHistory.length
+    const minmax = this.findMinMax(this.transactionHistory, 'transactions')
+    this.minTransactions = minmax.min
+    this.maxTransactions = minmax.max
+  }
+
+  addBlockTime(lastRecievedBlock, lastBlockTimestamp) {
+    if(this.blockTimes.length === 0) {
+      this.blockTimes.push({seconds: 5})
+    } else {
+      this.blockTimes.push({seconds: (lastRecievedBlock-lastBlockTimestamp)/1000})
+    }
+    if(this.blockTimes.length > 30) {
+      this.blockTimes.shift()
+    }
+    this.avgBlockTime = this.blockTimes.reduce((a,b) => a + b.seconds, 0) / this.blockTimes.length
+    const minmax = this.findMinMax(this.blockTimes, 'seconds')
+    this.minBlockTime = minmax.min
+    this.maxBlockTime = minmax.max
   }
 
   calculateUptime(upTimeRequests, upTimeReplies) {
@@ -62,6 +117,13 @@ class Nodes {
       })
 
       socket.on('nodeStats', (data) => {
+        if(data.lastBlockNumber > self.bestBlock) {
+          self.addBlockTime(data.lastRecievedBlock, self.lastBlockTime )
+          self.addTransactions(data.lastBlockNumber, data.lastBlockTransactions)
+          self.bestBlock = data.lastBlockNumber
+          self.lastBlockTime = data.lastRecievedBlock
+          self.lastBlockMiner = data.lastBlockMiner
+        }
         if(self.nodeList[data.id]) {
           const ping = Date.now() - data.timestamp;
           const node = self.nodeList[data.id]
@@ -80,7 +142,7 @@ class Nodes {
           node.geo                    = data.geo
           node.upTime                 = self.calculateUptime(self.nodeList[data.id].upTimeRequests, self.nodeList[data.id].upTimeReplies)
           node.lastSeen               = Date.now()
-          console.log(self.nodeList[data.id])
+          // console.log(self.nodeList[data.id])
         } else {
           console.log('[+] Registering new node:', data.name)
           const ping = Date.now() - data.timestamp;
