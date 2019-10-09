@@ -1,3 +1,4 @@
+process.title = "NodeStats Server"
 const socket = require('socket.io');
 const express = require('express');
 const chalk = require('chalk')
